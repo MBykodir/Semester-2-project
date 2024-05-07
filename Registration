@@ -1,0 +1,54 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const bcrypt = require('bcryptjs');
+
+const app = express();
+app.use(bodyParser.json());
+
+const mongoose = require('mongoose');
+mongoose.connect('mongodb://localhost:27017/resume_app', { useNewUrlParser: true, useUnifiedTopology: true });
+const User = mongoose.model('User', { 
+    fullName: String,
+    gender: String,
+    age: Number,
+    phoneNumber: String,
+    email: { type: String, unique: true },
+    country: String,
+    password: String
+});
+
+app.post('/register', async (req, res) => {
+    const { fullName, gender, age, phoneNumber, email, country, password } = req.body;
+
+    // Валідація даних
+    if (!fullName || !gender || !age || !phoneNumber || !email || !country || !password) {
+        return res.status(400).json({ message: "Всі поля є обов'язковими" });
+    }
+    if (age <= 0 || age >= 150) {
+        return res.status(400).json({ message: "Неприпустимий вік" });
+    }
+    if (!/\d/.test(password) || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || password.length < 8) {
+        return res.status(400).json({ message: "Пароль має містити щонайменше одну цифру, одну маленьку та велику літери, спеціальний символ та бути довжиною не менше 8 символів" });
+    }
+   
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = new User({
+        fullName,
+        gender,
+        age,
+        phoneNumber,
+        email,
+        country,
+        password: hashedPassword
+    });
+    try {
+        await user.save();
+        res.json({ message: "Користувач успішно зареєстрований" });
+    } catch (err) {
+        res.status(500).json({ message: "Виникла помилка при реєстрації користувача" });
+    }
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
