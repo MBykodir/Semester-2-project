@@ -1,0 +1,54 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
+
+const app = express();
+app.use(bodyParser.json());
+
+// Підключення до бази даних MongoDB
+const mongoose = require('mongoose');
+mongoose.connect('mongodb://localhost:27017/resume_app', { useNewUrlParser: true, useUnifiedTopology: true });
+const User = mongoose.model('User', { email: String, password: String });
+
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = 'secret';
+
+function generateToken(user) {
+    return jwt.sign({ email: user.email }, JWT_SECRET, { expiresIn: '1h' });
+}
+
+function verifyToken(token) {
+    try {
+        return jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+        return null;
+    }
+}
+
+app.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+        return res.status(404).json({ message: "Користувач з такою електронною поштою не знайдений" });
+    }
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+        return res.status(401).json({ message: "Невірний пароль" });
+    }
+    const token = generateToken(user);
+    res.json({ token });
+});
+
+app.post('/reset-password', async (req, res) => {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+        return res.status(404).json({ message: "Користувач з такою електронною поштою не знайдений" });
+    }
+    const token = generateToken(user);
+    res.json({ message: "Лист для відновлення пароля відправлено на вашу електронну пошту" });
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
